@@ -5,6 +5,11 @@
 #include <set>
 #include <algorithm>
 
+#include <fstream>
+#include <sstream>
+
+#include <iostream>
+using namespace std;
 // Define structures for vertices, triangles, and quads
 struct Vertex {
     double x, y, z;
@@ -90,6 +95,71 @@ std::vector<Quad> convertToQuads(const std::vector<Vertex>& vertices, const std:
     return quads;
 }
 
+// Function to read Gmsh file
+void readGmshFile(const std::string& filename, std::vector<Vertex>& vertices, std::vector<Triangle>& triangles) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file: " << filename << "\n";
+        return;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        if (line == "$Nodes") {
+            int numNodes;
+            file >> numNodes;
+            vertices.resize(numNodes);
+            for (int i = 0; i < numNodes; ++i) {
+                int id;
+                file >> id >> vertices[i].x >> vertices[i].y >> vertices[i].z;
+            }
+        } else if (line == "$Elements") {
+            int numElements;
+            file >> numElements;
+            for (int i = 0; i < numElements; ++i) {
+                int id, type, tags;
+                file >> id >> type >> tags;
+                if (type == 2) { // Triangle
+                    Triangle tri;
+                    file >> tri.v1 >> tri.v2 >> tri.v3;
+                    triangles.push_back(tri);
+                } else {
+                    file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                }
+            }
+        }
+    }
+    cout << "Readed "<<triangles.size()<<" triangles"<<endl;
+    file.close();
+}
+
+
+// Function to write Gmsh file
+void writeGmshFile(const std::string& filename, const std::vector<Vertex>& vertices, const std::vector<Quad>& quads) {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file: " << filename << "\n";
+        return;
+    }
+
+    file << "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n";
+    file << "$Nodes\n" << vertices.size() << "\n";
+    for (size_t i = 0; i < vertices.size(); ++i) {
+        file << i + 1 << " " << vertices[i].x << " " << vertices[i].y << " " << vertices[i].z << "\n";
+    }
+    file << "$EndNodes\n";
+
+    file << "$Elements\n" << quads.size() << "\n";
+    for (size_t i = 0; i < quads.size(); ++i) {
+        file << i + 1 << " 3 0 " << quads[i].v1 + 1 << " " << quads[i].v2 + 1 << " " 
+             << quads[i].v3 + 1 << " " << quads[i].v4 + 1 << "\n";
+    }
+    file << "$EndElements\n";
+
+    file.close();
+}
+
+/*
 // Example usage
 int main() {
     // Define a simple triangular mesh
@@ -109,6 +179,26 @@ int main() {
     for (const auto& quad : quads) {
         std::cout << quad.v1 << ", " << quad.v2 << ", " << quad.v3 << ", " << quad.v4 << "\n";
     }
+
+    return 0;
+}
+*/
+
+
+int main() {
+    std::vector<Vertex> vertices;
+    std::vector<Triangle> triangles;
+
+    // Read Gmsh file
+    readGmshFile("input.msh", vertices, triangles);
+
+    // Convert to quads
+    auto quads = convertToQuads(vertices, triangles);
+    cout << "generated "<<quads.size()<<" quads"<<endl;
+    // Write Gmsh file
+    writeGmshFile("output.msh", vertices, quads);
+
+    std::cout << "Converted triangles to quads and wrote to output.msh\n";
 
     return 0;
 }

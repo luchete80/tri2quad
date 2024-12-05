@@ -33,3 +33,17 @@ Optionally, smooth vertex positions to improve element quality using Laplacian o
 Output Quad Mesh:
 
 Export the updated mesh with quads and remaining triangles.
+
+------------------------------------------------
+
+Changes Made:
+Replaced boost::hash:
+
+Implemented a custom hash function PairHash for std::pair to be used with std::unordered_map.
+Used std::minmax:
+
+Ensures consistent ordering of vertices in edge keys, avoiding duplicate entries for the same edge.
+Only Standard Libraries:
+
+Now uses standard C++ STL containers and utilities.
+This version is entirely self-contained and avoids any external dependencies.
