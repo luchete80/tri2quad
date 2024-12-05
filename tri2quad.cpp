@@ -53,7 +53,8 @@ std::vector<Quad> convertToQuads(const std::vector<Vertex>& vertices, const std:
     // Set to track used triangles
     std::set<int> usedTriangles;
     std::vector<Quad> quads;
-
+    
+    int shared_edge_count=0;
     // Iterate over triangles and form quads
     for (size_t i = 0; i < triangles.size(); ++i) {
         if (usedTriangles.count(i)) continue; // Skip already used triangles
@@ -88,10 +89,11 @@ std::vector<Quad> convertToQuads(const std::vector<Vertex>& vertices, const std:
                     usedTriangles.insert(adjIndex);
                     break;
                 }
+              shared_edge_count++;
             }
         }
     }
-
+    cout << "Shared edges"<<shared_edge_count<<endl;
     return quads;
 }
 
