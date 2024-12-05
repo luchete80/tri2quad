@@ -81,12 +81,13 @@ std::vector<Quad> convertToQuads(const std::vector<Vertex>& vertices, const std:
                     if (std::find(shared.begin(), shared.end(), v) == shared.end()) {
                         unshared.push_back(v);
                     }
-                }
+                }/*
                 cout << "Tri "<<i<<", shared tri"<<adjIndex<<endl;
                 cout << "Tri Verts "<<tri1.v1 <<","<<tri1.v2<<","<<tri1.v3<<endl;
                 cout << "Shared Tri Verts "<<tri2.v1<<","<<tri2.v2<<","<<tri2.v3<<endl;
                 cout <<"  Shared verts size "<<shared.size()<<endl;
                 cout <<"UnShared verts size "<<shared.size()<<endl;
+                */
                 if (shared.size() == 2 && unshared.size() == 2) { // Valid quad
                     quads.push_back({unshared[0], shared[0], unshared[1], shared[1]});
                     usedTriangles.insert(i);
