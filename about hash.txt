@@ -1,0 +1,26 @@
+This code defines a custom hash function for a std::pair in C++ using a struct named PairHash. It's often used to enable the use of std::pair as keys in hash-based containers like std::unordered_map or std::unordered_set.
+
+Here’s a detailed breakdown:
+
+Code Breakdown
+1. struct PairHash
+A structure that serves as a functor (a callable object).
+This struct is specialized for computing a hash value for a std::pair.
+2. template <typename T1, typename T2>
+A template declaration allows the hash function to work with pairs of any types T1 and T2.
+3. std::size_t operator()(const std::pair<T1, T2>& pair) const
+Defines the operator() method, making PairHash callable like a function.
+It takes a constant reference to a std::pair as input and returns a std::size_t value, which is the computed hash.
+4. return std::hash<T1>()(pair.first) ^ (std::hash<T2>()(pair.second) << 1);
+This line computes the hash of the pair:
+std::hash<T1>()(pair.first) computes the hash of the first element of the pair.
+std::hash<T2>()(pair.second) computes the hash of the second element of the pair.
+^ (bitwise XOR) combines the two hashes. XOR is commonly used because it helps spread out hash values evenly.
+(std::hash<T2>()(pair.second) << 1) shifts the hash of the second element left by 1 bit. This reduces the chance of hash collisions by differentiating between (a, b) and (b, a).
+5. const
+Marks the function as const, ensuring it does not modify the state of the PairHash object.
+Purpose
+This custom hash function can be used to allow std::pair as a key in std::unordered_map or std::unordered_set, which require a hash function for key types. By default, std::pair does not have a predefined hash function.
+
+Example Usage
+Here’s how it might be used:

@@ -7,7 +7,7 @@
 
 #include <fstream>
 #include <sstream>
-
+#include <map>
 #include <iostream>
 using namespace std;
 // Define structures for vertices, triangles, and quads
@@ -82,7 +82,11 @@ std::vector<Quad> convertToQuads(const std::vector<Vertex>& vertices, const std:
                         unshared.push_back(v);
                     }
                 }
-
+                cout << "Tri "<<i<<", shared tri"<<adjIndex<<endl;
+                cout << "Tri Verts "<<tri1.v1 <<","<<tri1.v2<<","<<tri1.v3<<endl;
+                cout << "Shared Tri Verts "<<tri2.v1<<","<<tri2.v2<<","<<tri2.v3<<endl;
+                cout <<"  Shared verts size "<<shared.size()<<endl;
+                cout <<"UnShared verts size "<<shared.size()<<endl;
                 if (shared.size() == 2 && unshared.size() == 2) { // Valid quad
                     quads.push_back({unshared[0], shared[0], unshared[1], shared[1]});
                     usedTriangles.insert(i);
@@ -105,6 +109,10 @@ void readGmshFile(const std::string& filename, std::vector<Vertex>& vertices, st
         return;
     }
 
+  // we make a map between serial number of the vertex and its number in the file.
+  // it will help us when we create mesh elements
+  std::map<int, int> vertices_map;
+  
     std::string line;
     while (std::getline(file, line)) {
         if (line == "$Nodes") {
@@ -114,6 +122,7 @@ void readGmshFile(const std::string& filename, std::vector<Vertex>& vertices, st
             for (int i = 0; i < numNodes; ++i) {
                 int id;
                 file >> id >> vertices[i].x >> vertices[i].y >> vertices[i].z;
+                vertices_map[id] = i; // add the number of vertex to the map
             }
         } else if (line == "$Elements") {
             int numElements;
@@ -121,9 +130,23 @@ void readGmshFile(const std::string& filename, std::vector<Vertex>& vertices, st
             for (int i = 0; i < numElements; ++i) {
                 int id, type, tags;
                 file >> id >> type >> tags;
+
+                std::vector<int> data(tags); // allocate the memory for some data
+                for (int i = 0; i <tags; ++i) // read this information
+                  file >> data[i];
+                int phys_domain = (tags > 0) ? data[0] : 0; // physical domain - the most important value
+      //          elem_domain = (n_tags > 1) ? data[1] : 0; // elementary domain
+      //          partition   = (n_tags > 2) ? data[2] : 0; // partition (Metis, Chaco, etc)
+                data.clear(); // other data isn't interesting for us
+
                 if (type == 2) { // Triangle
                     Triangle tri;
-                    file >> tri.v1 >> tri.v2 >> tri.v3;
+                    //file >> tri.v1 >> tri.v2 >> tri.v3;
+                    int vid;
+                    file >> vid;tri.v1= vertices_map[vid];
+                    file >> vid;tri.v2= vertices_map[vid];                    
+                    file >> vid;tri.v3= vertices_map[vid];
+                    
                     triangles.push_back(tri);
                 } else {
                     file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
@@ -184,8 +207,9 @@ int main() {
 
     return 0;
 }
-*/
 
+
+*/
 
 int main() {
     std::vector<Vertex> vertices;
