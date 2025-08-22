@@ -195,6 +195,43 @@ bool isIdealTri(const Triangle& t, const vector<Vertex>& verts){
     //~ }
 //~ }
 
+//~ bool isValidQuad(const vector<Vertex>& verts, const Quad& q) {
+    //~ // Verificar que no haya vértices duplicados
+    //~ set<int> unique_verts = {q.v1, q.v2, q.v3, q.v4};
+    //~ if(unique_verts.size() != 4) return false;
+    
+    //~ // Verificar que no sea degenerado (área > 0)
+    //~ return calculateQuadArea(verts, q) > 1e-10;
+//~ }
+
+//~ // Después de emparejar quads, agregar triángulos sobrantes
+//~ for(size_t i=0; i<triangles.size(); ++i) {
+    //~ if(!usedTriangles.count(i)) {
+        //~ // Convertir triángulo a quad degenerado o manejarlo diferente
+    //~ }
+//~ }
+//~ vector<Quad> convertToQuadsImproved(const vector<Vertex>& vertices, 
+                                   //~ const vector<Triangle>& triangles) {
+    //~ // Primera pasada: encontrar todos los pares posibles con sus calidades
+    //~ vector<pair<int, int, double>> candidatePairs;
+    
+    //~ // Segunda pasada: seleccionar pares óptimos (problema de matching)
+    
+    //~ return quads;
+//~ }
+
+//~ Implementar el filtro isIdealTri para priorizar triángulos que probablemente formen buenos quads
+
+//~ Agregar verificación de validez para los quads generados
+
+//~ Manejar triángulos sobrantes en lugar de ignorarlos
+
+//~ Mejorar el parsing de Gmsh para manejar correctamente los encabezados
+
+//~ El código tiene buena base pero necesita pulir estos detalles para producción.
+
+
+
 // ---------------------------
 // Escritura archivo Gmsh
 // ---------------------------
