@@ -139,6 +139,62 @@ void readGmshFile(const string& filename, vector<Vertex>& vertices, vector<Trian
     file.close();
 }
 
+// Function to verify tri ~45°+45°+90°
+bool isIdealTri(const Triangle& t, const vector<Vertex>& verts){
+    auto dist2D = [](Vertex a, Vertex b){ double dx=a.x-b.x, dy=a.y-b.y; return sqrt(dx*dx+dy*dy); };
+    double a = dist2D(verts[t.v1], verts[t.v2]);
+    double b = dist2D(verts[t.v2], verts[t.v3]);
+    double c = dist2D(verts[t.v3], verts[t.v1]);
+    double cosA = (b*b + c*c - a*a)/(2*b*c);
+    double cosB = (a*a + c*c - b*b)/(2*a*c);
+    double cosC = (a*a + b*b - c*c)/(2*a*b);
+    double degA=acos(cosA)*180.0/M_PI;
+    double degB=acos(cosB)*180.0/M_PI;
+    double degC=acos(cosC)*180.0/M_PI;
+    // Verificar 1≈90°, otros ≈45°
+    return ( (abs(degA-90)<5 && abs(degB-45)<5 && abs(degC-45)<5) ||
+             (abs(degB-90)<5 && abs(degA-45)<5 && abs(degC-45)<5) ||
+             (abs(degC-90)<5 && abs(degA-45)<5 && abs(degB-45)<5) );
+}
+
+//~ ////// MOTIFICATION IN CONVERT TO QUADS
+//~ for(size_t i=0;i<triangles.size();++i){
+    //~ if(usedTriangles.count(i)) continue;
+    //~ const Triangle& tri1 = triangles[i];
+    //~ if(!isIdealTri(tri1, vertices)) continue; // <-- NUEVO
+
+    //~ Quad bestQuad; double bestQuality=-1.0; int bestNeighbor=-1;
+
+    //~ for(auto edge : {makeEdgeKey(tri1.v1,tri1.v2), makeEdgeKey(tri1.v2,tri1.v3), makeEdgeKey(tri1.v3,tri1.v1)}){
+        //~ const auto& adjList = edgeToTriangles[edge];
+        //~ if(adjList.size()!=2) continue;
+        //~ int adjIndex = (adjList[0]==i)? adjList[1]:adjList[0];
+        //~ if(usedTriangles.count(adjIndex)) continue;
+        //~ const Triangle& tri2 = triangles[adjIndex];
+        //~ if(!isIdealTri(tri2, vertices)) continue; // <-- NUEVO
+
+        //~ // formar quad candidato
+        //~ vector<int> shared, unshared;
+        //~ for(int v : {tri1.v1,tri1.v2,tri1.v3})
+            //~ if(v==tri2.v1 || v==tri2.v2 || v==tri2.v3) shared.push_back(v);
+            //~ else unshared.push_back(v);
+        //~ for(int v : {tri2.v1,tri2.v2,tri2.v3})
+            //~ if(find(shared.begin(),shared.end(),v)==shared.end()) unshared.push_back(v);
+
+        //~ if(shared.size()==2 && unshared.size()==2){
+            //~ Quad candidate{unshared[0], shared[0], unshared[1], shared[1]};
+            //~ double q = quadQuality(vertices, candidate);
+            //~ if(q>bestQuality){ bestQuality=q; bestQuad=candidate; bestNeighbor=adjIndex; }
+        //~ }
+    //~ }
+
+    //~ if(bestNeighbor!=-1){
+        //~ quads.push_back(bestQuad);
+        //~ usedTriangles.insert(i);
+        //~ usedTriangles.insert(bestNeighbor);
+    //~ }
+//~ }
+
 // ---------------------------
 // Escritura archivo Gmsh
 // ---------------------------
@@ -156,6 +212,9 @@ void writeGmshFile(const string& filename, const vector<Vertex>& vertices, const
     file<<"$EndElements\n";
     file.close();
 }
+
+
+
 
 // ---------------------------
 // Main
