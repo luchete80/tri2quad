@@ -1,231 +1,175 @@
 #include <iostream>
 #include <vector>
 #include <unordered_map>
-#include <tuple>
 #include <set>
 #include <algorithm>
-
 #include <fstream>
-#include <sstream>
 #include <map>
-#include <iostream>
+#include <cmath>
 using namespace std;
-// Define structures for vertices, triangles, and quads
-struct Vertex {
-    double x, y, z;
-};
 
-struct Triangle {
-    int v1, v2, v3; // Indices of vertices
-};
+// ---------------------------
+// Estructuras de datos
+// ---------------------------
+struct Vertex { double x,y,z; };
+struct Triangle { int v1,v2,v3; };
+struct Quad { int v1,v2,v3,v4; };
 
-struct Quad {
-    int v1, v2, v3, v4; // Indices of vertices
-};
-
-// Custom hash function for std::pair
+// ---------------------------
+// Hash para std::pair<int,int>
+// ---------------------------
 struct PairHash {
     template <typename T1, typename T2>
-    std::size_t operator()(const std::pair<T1, T2>& pair) const {
-        return std::hash<T1>()(pair.first) ^ (std::hash<T2>()(pair.second) << 1);
+    std::size_t operator()(const std::pair<T1,T2>& p) const {
+        return std::hash<T1>()(p.first) ^ (std::hash<T2>()(p.second)<<1);
     }
 };
 
-// Utility to create an edge key
-std::pair<int, int> makeEdgeKey(int v1, int v2) {
-    return std::minmax(v1, v2); // Ensure consistent order for the edge
+inline pair<int,int> makeEdgeKey(int a,int b){ return minmax(a,b); }
+
+// ---------------------------
+// Función de calidad de quad
+// ---------------------------
+double quadQuality(const vector<Vertex>& verts, const Quad& q){
+    auto dist2D = [](const Vertex& a, const Vertex& b){
+        double dx=a.x-b.x, dy=a.y-b.y; return sqrt(dx*dx+dy*dy);
+    };
+    double l1=dist2D(verts[q.v1],verts[q.v2]);
+    double l2=dist2D(verts[q.v2],verts[q.v3]);
+    double l3=dist2D(verts[q.v3],verts[q.v4]);
+    double l4=dist2D(verts[q.v4],verts[q.v1]);
+    double side_ratio = min(l1,l3)/max(l1,l3) * min(l2,l4)/max(l2,l4);
+
+    auto angleCos = [&](Vertex a,Vertex b,Vertex c){
+        double dx1=a.x-b.x, dy1=a.y-b.y;
+        double dx2=c.x-b.x, dy2=c.y-b.y;
+        double dot=dx1*dx2+dy1*dy2;
+        double len1=sqrt(dx1*dx1+dy1*dy1);
+        double len2=sqrt(dx2*dx2+dy2*dy2);
+        return dot/(len1*len2+1e-12);
+    };
+    double angles = fabs(angleCos(verts[q.v4],verts[q.v1],verts[q.v2])) +
+                    fabs(angleCos(verts[q.v1],verts[q.v2],verts[q.v3])) +
+                    fabs(angleCos(verts[q.v2],verts[q.v3],verts[q.v4])) +
+                    fabs(angleCos(verts[q.v3],verts[q.v4],verts[q.v1]));
+    double angle_score = 1.0/(angles+1e-6);
+    return side_ratio*angle_score;
 }
 
-// Function to convert triangles to quads
-std::vector<Quad> convertToQuads(const std::vector<Vertex>& vertices, const std::vector<Triangle>& triangles) {
-    // Map to store adjacent triangles for each edge
-    std::unordered_map<std::pair<int, int>, std::vector<int>, PairHash> edgeToTriangles;
-
-    // Fill edge-to-triangle map
-    for (size_t i = 0; i < triangles.size(); ++i) {
-        const Triangle& tri = triangles[i];
-        auto edges = {makeEdgeKey(tri.v1, tri.v2), makeEdgeKey(tri.v2, tri.v3), makeEdgeKey(tri.v3, tri.v1)};
-        for (const auto& edge : edges) {
+// ---------------------------
+// Convertir triángulos a quads
+// ---------------------------
+vector<Quad> convertToQuads(const vector<Vertex>& vertices, const vector<Triangle>& triangles){
+    unordered_map<pair<int,int>, vector<int>, PairHash> edgeToTriangles;
+    for(size_t i=0;i<triangles.size();++i){
+        const Triangle& tri=triangles[i];
+        for(auto edge : {makeEdgeKey(tri.v1,tri.v2), makeEdgeKey(tri.v2,tri.v3), makeEdgeKey(tri.v3,tri.v1)})
             edgeToTriangles[edge].push_back(i);
-        }
     }
 
-    // Set to track used triangles
-    std::set<int> usedTriangles;
-    std::vector<Quad> quads;
-    
-    int shared_edge_count=0;
-    // Iterate over triangles and form quads
-    for (size_t i = 0; i < triangles.size(); ++i) {
-        if (usedTriangles.count(i)) continue; // Skip already used triangles
+    set<int> usedTriangles;
+    vector<Quad> quads;
 
-        const Triangle& tri1 = triangles[i];
-        for (const auto& edge : {makeEdgeKey(tri1.v1, tri1.v2), makeEdgeKey(tri1.v2, tri1.v3), makeEdgeKey(tri1.v3, tri1.v1)}) {
-            const auto& adjacentTriangles = edgeToTriangles[edge];
-            if (adjacentTriangles.size() == 2) { // Only consider edges shared by exactly two triangles
-                int adjIndex = adjacentTriangles[0] == i ? adjacentTriangles[1] : adjacentTriangles[0];
-                if (usedTriangles.count(adjIndex)) continue;
+    for(size_t i=0;i<triangles.size();++i){
+        if(usedTriangles.count(i)) continue;
+        const Triangle& tri1=triangles[i];
 
-                const Triangle& tri2 = triangles[adjIndex];
+        Quad bestQuad;
+        double bestQuality=-1.0;
+        int bestNeighbor=-1;
 
-                // Find the shared edge vertices
-                std::vector<int> shared, unshared;
-                for (int v : {tri1.v1, tri1.v2, tri1.v3}) {
-                    if (v == tri2.v1 || v == tri2.v2 || v == tri2.v3) {
-                        shared.push_back(v);
-                    } else {
-                        unshared.push_back(v);
-                    }
-                }
-                for (int v : {tri2.v1, tri2.v2, tri2.v3}) {
-                    if (std::find(shared.begin(), shared.end(), v) == shared.end()) {
-                        unshared.push_back(v);
-                    }
-                }/*
-                cout << "Tri "<<i<<", shared tri"<<adjIndex<<endl;
-                cout << "Tri Verts "<<tri1.v1 <<","<<tri1.v2<<","<<tri1.v3<<endl;
-                cout << "Shared Tri Verts "<<tri2.v1<<","<<tri2.v2<<","<<tri2.v3<<endl;
-                cout <<"  Shared verts size "<<shared.size()<<endl;
-                cout <<"UnShared verts size "<<shared.size()<<endl;
-                */
-                if (shared.size() == 2 && unshared.size() == 2) { // Valid quad
-                    quads.push_back({unshared[0], shared[0], unshared[1], shared[1]});
-                    usedTriangles.insert(i);
-                    usedTriangles.insert(adjIndex);
-                    break;
-                }
-              shared_edge_count++;
+        for(auto edge : {makeEdgeKey(tri1.v1,tri1.v2), makeEdgeKey(tri1.v2,tri1.v3), makeEdgeKey(tri1.v3,tri1.v1)}){
+            const auto& adjList = edgeToTriangles[edge];
+            if(adjList.size()!=2) continue;
+            int adjIndex = (adjList[0]==i)? adjList[1]: adjList[0];
+            if(usedTriangles.count(adjIndex)) continue;
+
+            const Triangle& tri2=triangles[adjIndex];
+
+            vector<int> shared, unshared;
+            for(int v : {tri1.v1,tri1.v2,tri1.v3})
+                if(v==tri2.v1 || v==tri2.v2 || v==tri2.v3) shared.push_back(v);
+                else unshared.push_back(v);
+            for(int v : {tri2.v1,tri2.v2,tri2.v3})
+                if(find(shared.begin(),shared.end(),v)==shared.end()) unshared.push_back(v);
+
+            if(shared.size()==2 && unshared.size()==2){
+                Quad candidate{unshared[0], shared[0], unshared[1], shared[1]};
+                double q = quadQuality(vertices,candidate);
+                if(q>bestQuality){ bestQuality=q; bestQuad=candidate; bestNeighbor=adjIndex; }
             }
         }
+
+        if(bestNeighbor!=-1){
+            quads.push_back(bestQuad);
+            usedTriangles.insert(i);
+            usedTriangles.insert(bestNeighbor);
+        }
     }
-    cout << "Shared edges"<<shared_edge_count<<endl;
     return quads;
 }
 
-// Function to read Gmsh file
-void readGmshFile(const std::string& filename, std::vector<Vertex>& vertices, std::vector<Triangle>& triangles) {
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        std::cerr << "Failed to open file: " << filename << "\n";
-        return;
-    }
-
-  // we make a map between serial number of the vertex and its number in the file.
-  // it will help us when we create mesh elements
-  std::map<int, int> vertices_map;
-  
-    std::string line;
-    while (std::getline(file, line)) {
-        if (line == "$Nodes") {
-            int numNodes;
-            file >> numNodes;
-            vertices.resize(numNodes);
-            for (int i = 0; i < numNodes; ++i) {
-                int id;
-                file >> id >> vertices[i].x >> vertices[i].y >> vertices[i].z;
-                vertices_map[id] = i; // add the number of vertex to the map
+// ---------------------------
+// Lectura archivo Gmsh
+// ---------------------------
+void readGmshFile(const string& filename, vector<Vertex>& vertices, vector<Triangle>& triangles){
+    ifstream file(filename);
+    if(!file.is_open()){ cerr<<"Cannot open "<<filename<<"\n"; return; }
+    map<int,int> vertexMap;
+    string line;
+    while(getline(file,line)){
+        if(line=="$Nodes"){
+            int numNodes; file>>numNodes; vertices.resize(numNodes);
+            for(int i=0;i<numNodes;++i){
+                int id; file>>id>>vertices[i].x>>vertices[i].y>>vertices[i].z;
+                vertexMap[id]=i;
             }
-        } else if (line == "$Elements") {
-            int numElements;
-            file >> numElements;
-            for (int i = 0; i < numElements; ++i) {
-                int id, type, tags;
-                file >> id >> type >> tags;
-
-                std::vector<int> data(tags); // allocate the memory for some data
-                for (int i = 0; i <tags; ++i) // read this information
-                  file >> data[i];
-                int phys_domain = (tags > 0) ? data[0] : 0; // physical domain - the most important value
-      //          elem_domain = (n_tags > 1) ? data[1] : 0; // elementary domain
-      //          partition   = (n_tags > 2) ? data[2] : 0; // partition (Metis, Chaco, etc)
-                data.clear(); // other data isn't interesting for us
-
-                if (type == 2) { // Triangle
-                    Triangle tri;
-                    //file >> tri.v1 >> tri.v2 >> tri.v3;
-                    int vid;
-                    file >> vid;tri.v1= vertices_map[vid];
-                    file >> vid;tri.v2= vertices_map[vid];                    
-                    file >> vid;tri.v3= vertices_map[vid];
-                    
-                    triangles.push_back(tri);
-                } else {
-                    file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                }
+        } else if(line=="$Elements"){
+            int numElements; file>>numElements;
+            for(int i=0;i<numElements;++i){
+                int id,type,tags; file>>id>>type>>tags;
+                for(int j=0;j<tags;++j){ int dummy; file>>dummy; } // ignorar tags
+                if(type==2){ // triángulo
+                    int v[3]; file>>v[0]>>v[1]>>v[2];
+                    triangles.push_back({vertexMap[v[0]], vertexMap[v[1]], vertexMap[v[2]]});
+                } else file.ignore(numeric_limits<streamsize>::max(),'\n');
             }
         }
     }
-    cout << "Readed "<<triangles.size()<<" triangles"<<endl;
     file.close();
 }
 
-
-// Function to write Gmsh file
-void writeGmshFile(const std::string& filename, const std::vector<Vertex>& vertices, const std::vector<Quad>& quads) {
-    std::ofstream file(filename);
-    if (!file.is_open()) {
-        std::cerr << "Failed to open file: " << filename << "\n";
-        return;
-    }
-
-    file << "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n";
-    file << "$Nodes\n" << vertices.size() << "\n";
-    for (size_t i = 0; i < vertices.size(); ++i) {
-        file << i + 1 << " " << vertices[i].x << " " << vertices[i].y << " " << vertices[i].z << "\n";
-    }
-    file << "$EndNodes\n";
-
-    file << "$Elements\n" << quads.size() << "\n";
-    for (size_t i = 0; i < quads.size(); ++i) {
-        file << i + 1 << " 3 0 " << quads[i].v1 + 1 << " " << quads[i].v2 + 1 << " " 
-             << quads[i].v3 + 1 << " " << quads[i].v4 + 1 << "\n";
-    }
-    file << "$EndElements\n";
-
+// ---------------------------
+// Escritura archivo Gmsh
+// ---------------------------
+void writeGmshFile(const string& filename, const vector<Vertex>& vertices, const vector<Quad>& quads){
+    ofstream file(filename);
+    if(!file.is_open()){ cerr<<"Cannot open "<<filename<<"\n"; return; }
+    file<<"$MeshFormat\n2.2 0 8\n$EndMeshFormat\n";
+    file<<"$Nodes\n"<<vertices.size()<<"\n";
+    for(size_t i=0;i<vertices.size();++i)
+        file<<i+1<<" "<<vertices[i].x<<" "<<vertices[i].y<<" "<<vertices[i].z<<"\n";
+    file<<"$EndNodes\n";
+    file<<"$Elements\n"<<quads.size()<<"\n";
+    for(size_t i=0;i<quads.size();++i)
+        file<<i+1<<" 3 0 "<<quads[i].v1+1<<" "<<quads[i].v2+1<<" "<<quads[i].v3+1<<" "<<quads[i].v4+1<<"\n";
+    file<<"$EndElements\n";
     file.close();
 }
 
-/*
-// Example usage
-int main() {
-    // Define a simple triangular mesh
-    std::vector<Vertex> vertices = {
-        {0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {0.5, 1.0, 0.0}, 
-        {1.5, 1.0, 0.0}, {2.0, 0.0, 0.0}, {1.0, -1.0, 0.0}
-    };
-    std::vector<Triangle> triangles = {
-        {0, 1, 2}, {1, 3, 2}, {1, 4, 3}, {1, 5, 4}
-    };
+// ---------------------------
+// Main
+// ---------------------------
+int main(){
+    vector<Vertex> vertices;
+    vector<Triangle> triangles;
 
-    // Convert to quads
-    auto quads = convertToQuads(vertices, triangles);
-
-    // Output results
-    std::cout << "Quads: \n";
-    for (const auto& quad : quads) {
-        std::cout << quad.v1 << ", " << quad.v2 << ", " << quad.v3 << ", " << quad.v4 << "\n";
-    }
-
-    return 0;
-}
-
-
-*/
-
-int main() {
-    std::vector<Vertex> vertices;
-    std::vector<Triangle> triangles;
-
-    // Read Gmsh file
     readGmshFile("input.msh", vertices, triangles);
-
-    // Convert to quads
     auto quads = convertToQuads(vertices, triangles);
-    cout << "generated "<<quads.size()<<" quads"<<endl;
-    // Write Gmsh file
-    writeGmshFile("output.msh", vertices, quads);
 
-    std::cout << "Converted triangles to quads and wrote to output.msh\n";
+    cout<<"Generated "<<quads.size()<<" quads from "<<triangles.size()<<" triangles\n";
+
+    writeGmshFile("output.msh", vertices, quads);
 
     return 0;
 }
